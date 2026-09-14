@@ -34,7 +34,7 @@ jobs:
           echo "$RUNNER_TEMP/depot_tools" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/depot_tools/.cipd_bin" >> "$GITHUB_PATH"
           export PATH="$RUNNER_TEMP/depot_tools:$PATH"
-          cd "$RUNNER_TEMP/depot_tools" && ./ensure_bootstrap
+          cd "$RUNNER_TEMP/depot_tools" && ./cipd_bin_setup.sh && ./ensure_bootstrap
           if [[ "$RUNNER_OS" == "Windows" ]]; then gclient.bat --version; else gclient --version; fi
       - name: Fetch pinned Crashpad
         shell: bash
