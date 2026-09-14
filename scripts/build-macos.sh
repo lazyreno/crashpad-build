@@ -3,6 +3,7 @@ set -euo pipefail
 : "${SDK_ARCH:?SDK_ARCH is required}"
 : "${CRASHPAD_SRC:?CRASHPAD_SRC is required}"
 : "${SDK_STAGE:?SDK_STAGE is required}"
+cd "$CRASHPAD_SRC"
 out="$CRASHPAD_SRC/out/Release-$SDK_ARCH"
 mkdir -p "$out"
 if command -v gn >/dev/null 2>&1 && command -v autoninja >/dev/null 2>&1; then

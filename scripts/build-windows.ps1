@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 if (!$env:SDK_ARCH -or !$env:CRASHPAD_SRC -or !$env:SDK_STAGE) { throw 'SDK_ARCH, CRASHPAD_SRC and SDK_STAGE are required' }
 $out = Join-Path $env:CRASHPAD_SRC ("out\Release-" + $env:SDK_ARCH)
+Set-Location $env:CRASHPAD_SRC
 New-Item -ItemType Directory -Force $out | Out-Null
 if (!(Get-Command gn -ErrorAction SilentlyContinue) -or !(Get-Command autoninja -ErrorAction SilentlyContinue)) { throw 'gn/autoninja unavailable; CI must provision depot_tools' }
 $cpu = $env:SDK_ARCH
