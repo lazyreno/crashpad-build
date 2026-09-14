@@ -1,0 +1,8 @@
+{
+  "platforms": [
+    {"key":"macos-arm64","os":"macos","arch":"arm64","runner":"macos-14","archiveExt":"zip","minimumSystemVersion":"11.0"},
+    {"key":"macos-x86_64","os":"macos","arch":"x86_64","runner":"macos-13","archiveExt":"zip","minimumSystemVersion":"11.0"},
+    {"key":"windows-arm64","os":"windows","arch":"arm64","runner":"windows-2022","archiveExt":"zip","minimumSystemVersion":"10.0"},
+    {"key":"windows-x86_64","os":"windows","arch":"x86_64","runner":"windows-2022","archiveExt":"zip","minimumSystemVersion":"10.0"}
+  ]
+}
