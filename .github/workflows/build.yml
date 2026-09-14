@@ -32,6 +32,7 @@ jobs:
           git clone --no-checkout https://chromium.googlesource.com/chromium/tools/depot_tools.git "$RUNNER_TEMP/depot_tools"
           git -C "$RUNNER_TEMP/depot_tools" checkout 36a8df4ad006eaa0572fb446edb8145fe5403592
           echo "$RUNNER_TEMP/depot_tools" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/depot_tools/.cipd_bin" >> "$GITHUB_PATH"
           export PATH="$RUNNER_TEMP/depot_tools:$PATH"
           cd "$RUNNER_TEMP/depot_tools" && ./ensure_bootstrap
           if [[ "$RUNNER_OS" == "Windows" ]]; then gclient.bat --version; else gclient --version; fi
@@ -50,7 +51,10 @@ jobs:
           SDK_ARCH: ${{ matrix.arch }}
           CRASHPAD_SRC: ${{ runner.temp }}/crashpad
           SDK_STAGE: ${{ runner.temp }}/sdk
-        run: scripts/build-macos.sh
+        run: |
+          command -v gn
+          command -v autoninja
+          scripts/build-macos.sh
       - name: Build Windows SDK
         if: matrix.os == 'windows'
         shell: pwsh
@@ -58,7 +62,10 @@ jobs:
           SDK_ARCH: ${{ matrix.arch }}
           CRASHPAD_SRC: ${{ runner.temp }}/crashpad
           SDK_STAGE: ${{ runner.temp }}/sdk
-        run: ./scripts/build-windows.ps1
+        run: |
+          Get-Command gn -ErrorAction Stop
+          Get-Command autoninja -ErrorAction Stop
+          ./scripts/build-windows.ps1
       - name: Stage SDK metadata and package files
         shell: bash
         env:
