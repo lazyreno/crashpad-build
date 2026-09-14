@@ -4,7 +4,7 @@
       "key": "macos-arm64",
       "os": "macos",
       "arch": "arm64",
-      "runner": "macos-13",
+      "runner": "macos-15",
       "archiveExt": "zip",
       "minimumSystemVersion": "11.0"
     },
@@ -12,7 +12,7 @@
       "key": "macos-x64",
       "os": "macos",
       "arch": "x64",
-      "runner": "macos-13",
+      "runner": "macos-15",
       "archiveExt": "zip",
       "minimumSystemVersion": "11.0"
     },
