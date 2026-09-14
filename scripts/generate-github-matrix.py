@@ -7,8 +7,8 @@ keys = [p['key'] for p in platforms]
 if set(keys) != allowed or len(keys) != len(set(keys)):
     raise SystemExit('platform matrix must contain exactly the four supported platforms')
 for p in platforms:
-    if p['os'] == 'macos' and p['arch'] not in ('arm64','x86_64'): raise SystemExit('invalid macOS architecture')
-    if p['os'] == 'windows' and p['arch'] not in ('arm64','x86_64'): raise SystemExit('invalid Windows architecture')
+    if p['os'] == 'macos' and p['arch'] not in ('arm64','x64'): raise SystemExit('invalid macOS architecture')
+    if p['os'] == 'windows' and p['arch'] not in ('arm64','x64'): raise SystemExit('invalid Windows architecture')
 out = json.dumps({'include': platforms}, separators=(',', ':'))
 if len(sys.argv) == 3 and sys.argv[1] == '--github-output':
     with open(sys.argv[2], 'a') as f: f.write('matrix='+out+'\n')
