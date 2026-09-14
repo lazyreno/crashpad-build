@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build reproducible Crashpad SDK archives for macOS arm64/x86_64 and Windows arm64/x86_64 in GitHub Actions, publish immutable Releases, and integrate the package with audiocut-desktop.
+**Goal:** Build reproducible Crashpad SDK archives for macOS arm64/x64 and Windows arm64/x64 in GitHub Actions, publish immutable Releases, and integrate the package with audiocut-desktop.
 
 **Architecture:** Declaration-driven producer modeled on `/Users/zhao/app/ffmpeg-base`: pinned source inputs and platform matrix feed a prepare job; four platform jobs build, stage, validate, archive, and checksum one SDK each; a publish job emits a Release and artifact index. The SDK exports CMake targets and compatibility variables consumed by desktop-base/audiocut.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Build exactly `macos-arm64`, `macos-x86_64`, `windows-arm64`, and `windows-x86_64`.
+- Build exactly `macos-arm64`, `macos-x64`, `windows-arm64`, and `windows-x64`.
 - Pin Crashpad, Chromium/depot_tools inputs, SDK version, and source checksums.
 - Windows arm64 is cross-built on an x64 runner and is never executed there.
 - Published archives are immutable; changed inputs require a new SDK version.
@@ -49,7 +49,7 @@
 **Files:** Create `scripts/build-macos.sh`, `tests/python/test_validate_macos_sdk.py`.
 
 - [ ] Fetch pinned depot_tools and Crashpad dependencies with revision/checksum verification.
-- [ ] Generate GN args for arm64 and x86_64, build with Ninja, and stage required headers, static libraries, handler, symbols, licenses, and CMake files.
+- [ ] Generate GN args for arm64 and x64, build with Ninja, and stage required headers, static libraries, handler, symbols, licenses, and CMake files.
 - [ ] Validate staged Mach-O files with `file`, `otool`, and `vtool`; reject architecture or minimum-system-version mismatches.
 - [ ] Run both architecture builds in Actions before release acceptance.
 
@@ -58,7 +58,7 @@
 **Files:** Create `scripts/build-windows.ps1`, `tests/python/test_validate_windows_sdk.py`.
 
 - [ ] Bootstrap pinned depot_tools and Visual Studio MSVC/clang environment.
-- [ ] Generate GN args for x86_64 and arm64, build with Ninja, and stage `.lib`, `.exe`, headers, symbols, licenses, and CMake files.
+- [ ] Generate GN args for x64 and arm64, build with Ninja, and stage `.lib`, `.exe`, headers, symbols, licenses, and CMake files.
 - [ ] Validate PE headers with `dumpbin /headers`; reject target-architecture mismatches.
 - [ ] Record ARM64 runtime validation on ARM64 Windows as a release acceptance check.
 
@@ -94,6 +94,6 @@
 **Files:** Create `docs/release-process.md` and update `ci/README.md`.
 
 - [ ] Publish a protected `v{sdkVersion}` tag and verify all eight archive/checksum assets plus `artifact-index.json`.
-- [ ] Verify macOS artifacts on matching hosts, Windows x86_64 on Windows, and Windows arm64 on ARM64 Windows hardware or VM.
+- [ ] Verify macOS artifacts on matching hosts, Windows x64 on Windows, and Windows arm64 on ARM64 Windows hardware or VM.
 - [ ] Record workflow run, commit, source revisions, checksums, and client integration result.
 - [ ] Update audiocut to the immutable Release URL and expected SDK version.
