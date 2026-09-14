@@ -40,12 +40,18 @@ jobs:
 
       - name: Build macOS SDK
         if: matrix.os == 'macos'
-        env: { SDK_ARCH: '${{ matrix.arch }}', CRASHPAD_SRC: '${{ runner.temp }}/crashpad', SDK_STAGE: '${{ runner.temp }}/sdk' }
+        env:
+          SDK_ARCH: ${{ matrix.arch }}
+          CRASHPAD_SRC: ${{ runner.temp }}/crashpad
+          SDK_STAGE: ${{ runner.temp }}/sdk
         run: scripts/build-macos.sh
       - name: Build Windows SDK
         if: matrix.os == 'windows'
         shell: pwsh
-        env: { SDK_ARCH: '${{ matrix.arch }}', CRASHPAD_SRC: '${{ runner.temp }}/crashpad', SDK_STAGE: '${{ runner.temp }}/sdk' }
+        env:
+          SDK_ARCH: ${{ matrix.arch }}
+          CRASHPAD_SRC: ${{ runner.temp }}/crashpad
+          SDK_STAGE: ${{ runner.temp }}/sdk
         run: ./scripts/build-windows.ps1
       - name: Stage SDK metadata and package files
         shell: bash
@@ -55,7 +61,9 @@ jobs:
           PLATFORM: '${{ matrix.key }}'
         run: scripts/stage-sdk.sh
       - uses: actions/upload-artifact@v4
-        with: { name: crashpad-sdk-${{ matrix.key }}, path: '${{ runner.temp }}/sdk' }
+        with:
+          name: crashpad-sdk-${{ matrix.key }}
+          path: ${{ runner.temp }}/sdk
   publish-release:
     needs: build-sdk
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
@@ -64,7 +72,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
-        with: { path: dist }
+        with:
+          path: dist
       - name: Archive SDKs
         shell: bash
         run: |
