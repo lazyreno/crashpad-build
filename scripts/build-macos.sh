@@ -8,7 +8,10 @@ out="$CRASHPAD_SRC/out/Release-$SDK_ARCH"
 mkdir -p "$out"
 if command -v gn >/dev/null 2>&1 && command -v autoninja >/dev/null 2>&1; then
   # Apple Clang on hosted macOS runners spells the C++23 mode c++2b.
-  gn gen "$out" --args="target_os=\"mac\" target_cpu=\"$SDK_ARCH\" is_debug=false cflags_cc=[\"-std=c++2b\"]"
+  while IFS= read -r file; do
+    perl -pi -e 's/-std=c\+\+23/-std=c++2b/g' "$file"
+  done < <(rg -l -- '-std=c\+\+23' "$CRASHPAD_SRC" "$RUNNER_TEMP/buildtools" 2>/dev/null || true)
+  gn gen "$out" --args="target_os=\"mac\" target_cpu=\"$SDK_ARCH\" is_debug=false"
   autoninja -C "$out" crashpad_handler
 else
   echo 'gn/autoninja unavailable; CI must provision depot_tools' >&2; exit 2
