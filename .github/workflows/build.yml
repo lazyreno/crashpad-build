@@ -36,6 +36,13 @@ jobs:
           export PATH="$RUNNER_TEMP/depot_tools:$PATH"
           cd "$RUNNER_TEMP/depot_tools" && ./update_depot_tools && ./cipd_bin_setup.sh && ./ensure_bootstrap
           if [[ "$RUNNER_OS" == "Windows" ]]; then gclient.bat --version; else gclient --version; fi
+      - name: Install GN and Ninja on macOS
+        if: matrix.os == 'macos'
+        run: brew install gn ninja
+      - name: Install GN and Ninja on Windows
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: choco install gn ninja -y --no-progress
       - name: Fetch pinned Crashpad
         shell: bash
         run: |
