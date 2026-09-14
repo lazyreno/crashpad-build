@@ -33,7 +33,7 @@ jobs:
           git -C "$RUNNER_TEMP/depot_tools" checkout 36a8df4ad006eaa0572fb446edb8145fe5403592
           echo "$RUNNER_TEMP/depot_tools" >> "$GITHUB_PATH"
           export PATH="$RUNNER_TEMP/depot_tools:$PATH"
-          if [[ "$RUNNER_OS" == "Windows" ]]; then ensure_bootstrap.bat; else ensure_bootstrap; fi
+          ./ensure_bootstrap
           if [[ "$RUNNER_OS" == "Windows" ]]; then gclient.bat --version; else gclient --version; fi
       - name: Fetch pinned Crashpad
         shell: bash
