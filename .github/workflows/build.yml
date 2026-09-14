@@ -52,6 +52,7 @@ jobs:
           CRASHPAD_SRC: ${{ runner.temp }}/crashpad
           SDK_STAGE: ${{ runner.temp }}/sdk
         run: |
+          export PATH="$RUNNER_TEMP/depot_tools/.cipd_bin:$RUNNER_TEMP/depot_tools:$PATH"
           command -v gn
           command -v autoninja
           scripts/build-macos.sh
@@ -63,6 +64,7 @@ jobs:
           CRASHPAD_SRC: ${{ runner.temp }}/crashpad
           SDK_STAGE: ${{ runner.temp }}/sdk
         run: |
+          $env:Path = "$env:RUNNER_TEMP\depot_tools\.cipd_bin;$env:RUNNER_TEMP\depot_tools;$env:Path"
           Get-Command gn -ErrorAction Stop
           Get-Command autoninja -ErrorAction Stop
           ./scripts/build-windows.ps1
