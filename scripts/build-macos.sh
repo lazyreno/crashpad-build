@@ -12,6 +12,7 @@ if command -v gn >/dev/null 2>&1 && command -v autoninja >/dev/null 2>&1; then
     sed -i '' 's/-std=c++23/-std=c++2b/g' "$file"
   done < <(rg -l -- '-std=c\+\+23' "$CRASHPAD_SRC" "$RUNNER_TEMP/buildtools" 2>/dev/null || true)
   gn gen "$out" --args="target_os=\"mac\" target_cpu=\"$SDK_ARCH\" is_debug=false"
+  sed -i '' 's/-std=c++23/-std=c++2b/g' "$out/build.ninja"
   autoninja -C "$out" crashpad_handler
 else
   echo 'gn/autoninja unavailable; CI must provision depot_tools' >&2; exit 2
