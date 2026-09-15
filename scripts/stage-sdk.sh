@@ -39,7 +39,7 @@ if(NOT TARGET Crashpad::Client)
     file(GLOB _crashpad_libs "${_crashpad_root}/lib/*.a")
   endif()
   set_target_properties(Crashpad::Client PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${_crashpad_root}/include"
+    INTERFACE_INCLUDE_DIRECTORIES "${_crashpad_root}/include;${_crashpad_root}/include/mini_chromium"
     INTERFACE_LINK_LIBRARIES "${_crashpad_libs}")
 endif()
 CMAKE
