@@ -11,6 +11,9 @@ if [[ -n "${CRASHPAD_SRC:-}" ]]; then
   cp -R "$CRASHPAD_SRC/minidump" "$SDK_STAGE/include/crashpad/"
   cp -R "$CRASHPAD_SRC/snapshot" "$SDK_STAGE/include/crashpad/"
   cp -R "$CRASHPAD_SRC/util" "$SDK_STAGE/include/crashpad/"
+  mini_chromium_dir="$CRASHPAD_SRC/third_party/mini_chromium/mini_chromium"
+  [[ -d "$mini_chromium_dir" ]] || { echo "Crashpad mini_chromium headers are missing: $mini_chromium_dir" >&2; exit 1; }
+  cp -R "$mini_chromium_dir" "$SDK_STAGE/include/mini_chromium"
   generated_dir="$(find "$CRASHPAD_SRC/out" -type d -name gen -print -quit 2>/dev/null || true)"
   if [[ -n "$generated_dir" ]]; then cp -R "$generated_dir" "$SDK_STAGE/include/"; fi
   find "$CRASHPAD_SRC/out" \( -name '*.a' -o -name '*.lib' \) -exec cp {} "$SDK_STAGE/lib/" \;
