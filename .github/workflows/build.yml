@@ -89,7 +89,7 @@ jobs:
         env:
           SDK_STAGE: '${{ runner.temp }}/sdk'
           CRASHPAD_SRC: '${{ runner.temp }}/crashpad'
-          SDK_VERSION: '${{ inputs.sdkVersion || '20260915.1' }}'
+          SDK_VERSION: "${{ inputs.sdkVersion || '20260915.1' }}"
           PLATFORM: '${{ matrix.key }}'
         run: scripts/stage-sdk.sh
       - uses: actions/upload-artifact@v4
