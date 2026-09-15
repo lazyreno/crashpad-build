@@ -1,6 +1,8 @@
 name: Build Crashpad SDK
 on:
+  # Rebuild on demand when validating a pinned source or runner change.
   workflow_dispatch:
+  # Main and tag pushes are the producer-side validation and release paths.
   push:
     branches: [main]
     tags: ['v*']
@@ -10,6 +12,7 @@ on:
       - 'scripts/**'
   pull_request:
     branches: [main]
+    # Documentation-only changes do not consume four-platform build minutes.
     paths:
       - '.github/workflows/build.yml'
       - 'config/**'
