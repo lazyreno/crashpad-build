@@ -115,5 +115,5 @@ jobs:
           for d in dist/*; do name=$(basename "$d"); (cd dist && zip -qr "../release/${name}.zip" "$name"); sha256sum "release/${name}.zip" > "release/${name}.zip.sha256"; done
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ inputs.sdkVersion || github.ref_name }}
+          tag_name: ${{ inputs.sdkVersion && format('v{0}', inputs.sdkVersion) || github.ref_name }}
           files: release/*
