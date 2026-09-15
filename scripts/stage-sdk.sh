@@ -14,6 +14,9 @@ if [[ -n "${CRASHPAD_SRC:-}" ]]; then
   generated_dir="$(find "$CRASHPAD_SRC/out" -type d -name gen -print -quit 2>/dev/null || true)"
   if [[ -n "$generated_dir" ]]; then cp -R "$generated_dir" "$SDK_STAGE/include/"; fi
   find "$CRASHPAD_SRC/out" \( -name '*.a' -o -name '*.lib' \) -exec cp {} "$SDK_STAGE/lib/" \;
+  for public_root in "$SDK_STAGE/include/crashpad" "$SDK_STAGE/include/mini_chromium" "$SDK_STAGE/include/gen"; do
+    [[ -d "$public_root" ]] || { echo "Crashpad public include tree is missing: $public_root" >&2; exit 1; }
+  done
 fi
 cat > "$SDK_STAGE/manifest.json" <<JSON
 {"schemaVersion":1,"sdkVersion":"$SDK_VERSION","platform":"$PLATFORM-$SDK_ARCH","arch":"$SDK_ARCH","crashpadRevision":"db44314646cbd0825a73b58dd2b7b5f4faca64a7","licenseMode":"bsd-compatible"}
