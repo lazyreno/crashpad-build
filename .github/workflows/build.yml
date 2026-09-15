@@ -2,6 +2,11 @@ name: Build Crashpad SDK
 on:
   # Rebuild on demand when validating a pinned source or runner change.
   workflow_dispatch:
+    inputs:
+      sdkVersion:
+        description: SDK version to publish
+        required: true
+        default: 20260915.1
   # Main and tag pushes are the producer-side validation and release paths.
   push:
     branches: [main]
@@ -84,7 +89,7 @@ jobs:
         env:
           SDK_STAGE: '${{ runner.temp }}/sdk'
           CRASHPAD_SRC: '${{ runner.temp }}/crashpad'
-          SDK_VERSION: '20260914.1'
+          SDK_VERSION: '${{ inputs.sdkVersion || '20260915.1' }}'
           PLATFORM: '${{ matrix.key }}'
         run: scripts/stage-sdk.sh
       - uses: actions/upload-artifact@v4
@@ -109,5 +114,5 @@ jobs:
           for d in dist/*; do name=$(basename "$d"); (cd dist && zip -qr "../release/${name}.zip" "$name"); sha256sum "release/${name}.zip" > "release/${name}.zip.sha256"; done
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: v${{ inputs.sdkVersion || github.ref_name }}
           files: release/*

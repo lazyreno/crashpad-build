@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-: "${SDK_STAGE:?}"; : "${SDK_VERSION:?}"; : "${PLATFORM:?}"
+: "${SDK_STAGE:?}"; : "${SDK_VERSION:?}"; : "${PLATFORM:?}"; : "${SDK_ARCH:?}"
 mkdir -p "$SDK_STAGE/cmake" "$SDK_STAGE/licenses"
 mkdir -p "$SDK_STAGE/include/crashpad" "$SDK_STAGE/lib"
 if [[ -n "${CRASHPAD_SRC:-}" ]]; then
@@ -14,7 +14,7 @@ if [[ -n "${CRASHPAD_SRC:-}" ]]; then
   find "$CRASHPAD_SRC/out" \( -name '*.a' -o -name '*.lib' \) -exec cp {} "$SDK_STAGE/lib/" \;
 fi
 cat > "$SDK_STAGE/manifest.json" <<JSON
-{"schemaVersion":1,"sdkVersion":"$SDK_VERSION","platform":"$PLATFORM","crashpadRevision":"db44314646cbd0825a73b58dd2b7b5f4faca64a7","licenseMode":"bsd-compatible"}
+{"schemaVersion":1,"sdkVersion":"$SDK_VERSION","platform":"$PLATFORM-$SDK_ARCH","arch":"$SDK_ARCH","crashpadRevision":"db44314646cbd0825a73b58dd2b7b5f4faca64a7","licenseMode":"bsd-compatible"}
 JSON
 cat > "$SDK_STAGE/cmake/CrashpadConfig.cmake" <<'CMAKE'
 get_filename_component(PACKAGE_PREFIX_DIR "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
