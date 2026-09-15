@@ -44,8 +44,15 @@ if(NOT TARGET Crashpad::Client)
   else()
     file(GLOB _crashpad_libs "${_crashpad_root}/lib/*.a")
   endif()
+  if(APPLE)
+    set(_crashpad_system_libs "-lbsm")
+  elseif(WIN32)
+    set(_crashpad_system_libs Advapi32 Bcrypt Userenv Version Ws2_32)
+  else()
+    set(_crashpad_system_libs)
+  endif()
   set_target_properties(Crashpad::Client PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${_crashpad_root}/include;${_crashpad_root}/include/crashpad;${_crashpad_root}/include/mini_chromium"
-    INTERFACE_LINK_LIBRARIES "${_crashpad_libs}")
+    INTERFACE_INCLUDE_DIRECTORIES "${_crashpad_root}/include;${_crashpad_root}/include/crashpad;${_crashpad_root}/include/mini_chromium;${_crashpad_root}/include/gen"
+    INTERFACE_LINK_LIBRARIES "${_crashpad_libs};${_crashpad_system_libs}")
 endif()
 CMAKE
