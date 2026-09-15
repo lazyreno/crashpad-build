@@ -113,7 +113,18 @@ jobs:
           set -euo pipefail
           mkdir -p release
           for d in dist/*; do name=$(basename "$d"); (cd dist && zip -qr "../release/${name}.zip" "$name"); sha256sum "release/${name}.zip" > "release/${name}.zip.sha256"; done
+      - name: Generate artifact index
+        shell: bash
+        run: |
+          python3 scripts/generate-artifact-index.py \
+            --release-assets release \
+            --output release/artifact-index.json \
+            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" \
+            --release-tag "${GITHUB_REF_NAME}"
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.sdkVersion && format('v{0}', inputs.sdkVersion) || github.ref_name }}
-          files: release/*
+          files: |
+            release/*.zip
+            release/*.zip.sha256
+            release/artifact-index.json
