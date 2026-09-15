@@ -9,6 +9,8 @@ if [[ -n "${CRASHPAD_SRC:-}" ]]; then
   cp -R "$CRASHPAD_SRC/minidump" "$SDK_STAGE/include/crashpad/"
   cp -R "$CRASHPAD_SRC/snapshot" "$SDK_STAGE/include/crashpad/"
   cp -R "$CRASHPAD_SRC/util" "$SDK_STAGE/include/crashpad/"
+  generated_dir="$(find "$CRASHPAD_SRC/out" -type d -name gen -print -quit 2>/dev/null || true)"
+  if [[ -n "$generated_dir" ]]; then cp -R "$generated_dir" "$SDK_STAGE/include/"; fi
   find "$CRASHPAD_SRC/out" \( -name '*.a' -o -name '*.lib' \) -exec cp {} "$SDK_STAGE/lib/" \;
 fi
 cat > "$SDK_STAGE/manifest.json" <<JSON
