@@ -3,6 +3,8 @@ set -euo pipefail
 : "${SDK_STAGE:?}"; : "${SDK_VERSION:?}"; : "${PLATFORM:?}"; : "${SDK_ARCH:?}"
 mkdir -p "$SDK_STAGE/cmake" "$SDK_STAGE/licenses"
 mkdir -p "$SDK_STAGE/include/crashpad" "$SDK_STAGE/lib"
+[[ -f "$CRASHPAD_SRC/LICENSE" ]] || { echo "Crashpad source LICENSE is missing" >&2; exit 1; }
+cp "$CRASHPAD_SRC/LICENSE" "$SDK_STAGE/licenses/CRASHPAD-LICENSE"
 if [[ -n "${CRASHPAD_SRC:-}" ]]; then
   cp -R "$CRASHPAD_SRC/client" "$SDK_STAGE/include/crashpad/"
   cp -R "$CRASHPAD_SRC/compat" "$SDK_STAGE/include/crashpad/"
