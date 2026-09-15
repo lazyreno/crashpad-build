@@ -72,6 +72,7 @@ jobs:
         shell: bash
         env:
           SDK_STAGE: '${{ runner.temp }}/sdk'
+          CRASHPAD_SRC: '${{ runner.temp }}/crashpad'
           SDK_VERSION: '20260914.1'
           PLATFORM: '${{ matrix.key }}'
         run: scripts/stage-sdk.sh
