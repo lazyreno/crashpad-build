@@ -67,6 +67,7 @@ jobs:
           SDK_ARCH: ${{ matrix.arch }}
           SDK_MINIMUM_SYSTEM_VERSION: ${{ matrix.minimumSystemVersion }}
           CRASHPAD_SRC: ${{ runner.temp }}/crashpad
+          CRASHPAD_RUN_UPSTREAM_TESTS: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: |
           export PATH="$RUNNER_TEMP/buildtools/mac:$RUNNER_TEMP/depot_tools/.cipd_bin:$RUNNER_TEMP/depot_tools:$PATH"
           command -v gn
@@ -78,6 +79,7 @@ jobs:
         env:
           SDK_ARCH: ${{ matrix.arch }}
           CRASHPAD_SRC: ${{ runner.temp }}/crashpad
+          CRASHPAD_RUN_UPSTREAM_TESTS: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: |
           $env:Path = "$env:RUNNER_TEMP\buildtools\win;$env:RUNNER_TEMP\depot_tools\.cipd_bin;$env:RUNNER_TEMP\depot_tools;$env:Path"
           Get-Command gn -ErrorAction Stop
@@ -105,7 +107,7 @@ jobs:
           path: ${{ runner.temp }}/sdk
   publish-release:
     needs: build-sdk
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -117,20 +119,15 @@ jobs:
       - id: release
         shell: bash
         env:
-          EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           sdk_version="$(python3 -c 'import json; print(json.load(open("config/sdk-version.json"))["sdkVersion"])')"
           expected_tag="v${sdk_version}"
-          if [[ "${EVENT_NAME}" == "push" ]]; then
-            release_tag="${REF_NAME}"
-            [[ "${release_tag}" == "${expected_tag}" ]] || {
-              echo "release tag must match sdkVersion: expected ${expected_tag}, got ${release_tag}" >&2
-              exit 1
-            }
-          else
-            release_tag="${expected_tag}"
-          fi
+          release_tag="${REF_NAME}"
+          [[ "${release_tag}" == "${expected_tag}" ]] || {
+            echo "release tag must match sdkVersion: expected ${expected_tag}, got ${release_tag}" >&2
+            exit 1
+          }
           echo "tag=${release_tag}" >> "$GITHUB_OUTPUT"
       - name: Archive SDKs
         shell: bash

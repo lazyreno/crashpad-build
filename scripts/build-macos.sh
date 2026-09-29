@@ -18,6 +18,20 @@ if command -v gn >/dev/null 2>&1 && command -v autoninja >/dev/null 2>&1; then
   gn gen "$out" --args="target_os=\"mac\" target_cpu=\"$SDK_ARCH\" is_debug=false mac_deployment_target=\"$SDK_MINIMUM_SYSTEM_VERSION\""
   find "$out" -type f -name '*.ninja' -exec sed -i '' 's/-std=c++23/-std=c++2b/g' {} +
   autoninja -C "$out" crashpad_handler
+  if [[ "${CRASHPAD_RUN_UPSTREAM_TESTS:-false}" == "true" ]]; then
+    test_targets=(
+      crashpad_client_test
+      crashpad_handler_test
+      crashpad_minidump_test
+      crashpad_snapshot_test
+      crashpad_test_test
+      crashpad_util_test
+    )
+    autoninja -C "$out" "${test_targets[@]}"
+    for test_target in "${test_targets[@]}"; do
+      CRASHPAD_TEST_DATA_ROOT="$CRASHPAD_SRC" "$out/$test_target"
+    done
+  fi
 else
   echo 'gn/autoninja unavailable; CI must provision depot_tools' >&2; exit 2
 fi

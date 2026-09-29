@@ -131,6 +131,28 @@ class CrashpadSdkContractTest(unittest.TestCase):
         self.assertIn("'tests/**'", pull_request)
         self.assertNotIn("inputs.sdkVersion", workflow)
 
+    def test_release_tags_run_the_full_upstream_test_suite(self):
+        workflow = (ROOT / ".github/workflows/build.yml").read_text(encoding="utf-8")
+        macos_builder = (ROOT / "scripts/build-macos.sh").read_text(encoding="utf-8")
+        windows_builder = (ROOT / "scripts/build-windows.ps1").read_text(encoding="utf-8")
+
+        self.assertIn("CRASHPAD_RUN_UPSTREAM_TESTS: ${{ startsWith(github.ref, 'refs/tags/v') }}", workflow)
+        publish_release = workflow.split("  publish-release:", 1)[1]
+        self.assertIn("if: startsWith(github.ref, 'refs/tags/v')", publish_release)
+        self.assertNotIn("workflow_dispatch", publish_release)
+        for target in (
+            "crashpad_client_test",
+            "crashpad_handler_test",
+            "crashpad_minidump_test",
+            "crashpad_snapshot_test",
+            "crashpad_test_test",
+            "crashpad_util_test",
+        ):
+            self.assertIn(target, macos_builder)
+            self.assertIn(target, windows_builder)
+        self.assertIn('CRASHPAD_RUN_UPSTREAM_TESTS:-false', macos_builder)
+        self.assertIn("CRASHPAD_RUN_UPSTREAM_TESTS -eq 'true'", windows_builder)
+
     def test_build_scripts_do_not_write_the_staged_sdk(self):
         for path in ("scripts/build-macos.sh", "scripts/build-windows.ps1"):
             content = (ROOT / path).read_text(encoding="utf-8")
