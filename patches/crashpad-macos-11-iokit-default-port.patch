@@ -1,0 +1,8 @@
+diff --git a/util/mac/mac_util.cc b/util/mac/mac_util.cc
+--- a/util/mac/mac_util.cc
++++ b/util/mac/mac_util.cc
+@@ -252,3 +252,3 @@ void MacModelAndBoard(std::string* model, std::string* board_id) {
+   base::mac::ScopedIOObject<io_service_t> platform_expert(
+-      IOServiceGetMatchingService(kIOMainPortDefault,
++      IOServiceGetMatchingService(MACH_PORT_NULL,
+                                   IOServiceMatching("IOPlatformExpertDevice")));

@@ -139,6 +139,49 @@ class CrashpadSdkContractTest(unittest.TestCase):
         windows_builder = (ROOT / "scripts/build-windows.ps1").read_text(encoding="utf-8")
         self.assertNotIn("SDK_MINIMUM_SYSTEM_VERSION", windows_builder)
 
+    def test_macos_builder_applies_the_iokit_compatibility_patch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "crashpad"
+            source_file = source / "util/mac/mac_util.cc"
+            source_file.parent.mkdir(parents=True)
+            source_file.write_text(
+                "\n" * 250
+                + "void MacModelAndBoard(std::string* model, std::string* board_id) {\n"
+                "  base::mac::ScopedIOObject<io_service_t> platform_expert(\n"
+                "      IOServiceGetMatchingService(kIOMainPortDefault,\n"
+                "                                  IOServiceMatching(\"IOPlatformExpertDevice\")));\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "init", "-q", str(source)], check=True)
+            subprocess.run(["git", "-C", str(source), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(source), "config", "user.name", "Test"], check=True)
+            subprocess.run(["git", "-C", str(source), "add", "util/mac/mac_util.cc"], check=True)
+            subprocess.run(["git", "-C", str(source), "commit", "-qm", "fixture"], check=True)
+            tools = root / "tools"
+            tools.mkdir()
+            for tool in ("gn", "autoninja"):
+                path = tools / tool
+                path.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+                path.chmod(0o755)
+            result = subprocess.run(
+                ["scripts/build-macos.sh"],
+                cwd=ROOT,
+                env=os.environ | {
+                    "PATH": f"{tools}:{os.environ['PATH']}",
+                    "RUNNER_TEMP": str(root),
+                    "CRASHPAD_SRC": str(source),
+                    "SDK_ARCH": "arm64",
+                    "SDK_MINIMUM_SYSTEM_VERSION": "11.0",
+                },
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("IOServiceGetMatchingService(MACH_PORT_NULL,", source_file.read_text(encoding="utf-8"))
+
     def test_platform_matrix_does_not_store_a_redundant_target_key(self):
         matrix = json.loads((ROOT / "config/platform-matrix.json").read_text(encoding="utf-8"))
 
