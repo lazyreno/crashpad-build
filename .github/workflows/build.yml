@@ -2,11 +2,6 @@ name: Build Crashpad SDK
 on:
   # Rebuild on demand when validating a pinned source or runner change.
   workflow_dispatch:
-    inputs:
-      sdkVersion:
-        description: SDK version to publish
-        required: true
-        default: 20260915.1
   # Main and tag pushes are the producer-side validation and release paths.
   push:
     branches: [main]
@@ -22,6 +17,7 @@ on:
       - '.github/workflows/build.yml'
       - 'config/**'
       - 'scripts/**'
+      - 'tests/**'
 permissions:
   contents: read
 jobs:
@@ -45,8 +41,10 @@ jobs:
       - name: Provision depot_tools
         shell: bash
         run: |
-          git clone --no-checkout https://chromium.googlesource.com/chromium/tools/depot_tools.git "$RUNNER_TEMP/depot_tools"
-          git -C "$RUNNER_TEMP/depot_tools" checkout 36a8df4ad006eaa0572fb446edb8145fe5403592
+          depot_tools_repository="$(python3 -c 'import json; print(json.load(open("config/source-lock.json"))["depotToolsRepository"])')"
+          depot_tools_revision="$(python3 -c 'import json; print(json.load(open("config/source-lock.json"))["depotToolsRevision"])')"
+          git clone --no-checkout "$depot_tools_repository" "$RUNNER_TEMP/depot_tools"
+          git -C "$RUNNER_TEMP/depot_tools" checkout "$depot_tools_revision"
           echo "$RUNNER_TEMP/depot_tools" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/depot_tools/.cipd_bin" >> "$GITHUB_PATH"
           export PATH="$RUNNER_TEMP/depot_tools:$PATH"
@@ -55,18 +53,20 @@ jobs:
       - name: Fetch pinned Crashpad
         shell: bash
         run: |
-          git clone https://chromium.googlesource.com/crashpad/crashpad "${{ runner.temp }}/crashpad"
-          git -C "${{ runner.temp }}/crashpad" checkout db44314646cbd0825a73b58dd2b7b5f4faca64a7
+          crashpad_repository="$(python3 -c 'import json; print(json.load(open("config/source-lock.json"))["crashpadRepository"])')"
+          crashpad_revision="$(python3 -c 'import json; print(json.load(open("config/source-lock.json"))["crashpadRevision"])')"
+          git clone "$crashpad_repository" "${{ runner.temp }}/crashpad"
+          git -C "${{ runner.temp }}/crashpad" checkout "$crashpad_revision"
           cd "${{ runner.temp }}"
-          gclient config --name=crashpad https://chromium.googlesource.com/crashpad/crashpad.git
-          gclient sync --no-history --revision src@db44314646cbd0825a73b58dd2b7b5f4faca64a7
+          gclient config --name=crashpad "${crashpad_repository}.git"
+          gclient sync --no-history --revision "src@${crashpad_revision}"
 
       - name: Build macOS SDK
         if: matrix.os == 'macos'
         env:
           SDK_ARCH: ${{ matrix.arch }}
+          SDK_MINIMUM_SYSTEM_VERSION: ${{ matrix.minimumSystemVersion }}
           CRASHPAD_SRC: ${{ runner.temp }}/crashpad
-          SDK_STAGE: ${{ runner.temp }}/sdk
         run: |
           export PATH="$RUNNER_TEMP/buildtools/mac:$RUNNER_TEMP/depot_tools/.cipd_bin:$RUNNER_TEMP/depot_tools:$PATH"
           command -v gn
@@ -78,7 +78,6 @@ jobs:
         env:
           SDK_ARCH: ${{ matrix.arch }}
           CRASHPAD_SRC: ${{ runner.temp }}/crashpad
-          SDK_STAGE: ${{ runner.temp }}/sdk
         run: |
           $env:Path = "$env:RUNNER_TEMP\buildtools\win;$env:RUNNER_TEMP\depot_tools\.cipd_bin;$env:RUNNER_TEMP\depot_tools;$env:Path"
           Get-Command gn -ErrorAction Stop
@@ -89,13 +88,20 @@ jobs:
         env:
           SDK_STAGE: '${{ runner.temp }}/sdk'
           CRASHPAD_SRC: '${{ runner.temp }}/crashpad'
-          SDK_VERSION: "${{ inputs.sdkVersion || '20260915.1' }}"
-          PLATFORM: '${{ matrix.os }}'
+          SDK_OS: '${{ matrix.os }}'
           SDK_ARCH: '${{ matrix.arch }}'
-        run: scripts/stage-sdk.sh
+          SDK_MINIMUM_SYSTEM_VERSION: '${{ matrix.minimumSystemVersion }}'
+        run: |
+          scripts/stage-sdk.sh
+          python3 scripts/validate-sdk-layout.py "$RUNNER_TEMP/sdk" --os '${{ matrix.os }}' --arch '${{ matrix.arch }}' --minimum-system-version '${{ matrix.minimumSystemVersion }}'
+          if [[ '${{ matrix.os }}' == 'macos' ]]; then
+            python3 scripts/validate-macos-sdk-minos.py --sdk-root "$RUNNER_TEMP/sdk" --minimum-system-version '${{ matrix.minimumSystemVersion }}'
+          else
+            python3 scripts/validate-windows-sdk-subsystem.py --sdk-root "$RUNNER_TEMP/sdk" --minimum-system-version '${{ matrix.minimumSystemVersion }}'
+          fi
       - uses: actions/upload-artifact@v4
         with:
-          name: crashpad-sdk-${{ matrix.key }}
+          name: crashpad-sdk-${{ matrix.os }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/sdk
   publish-release:
     needs: build-sdk
@@ -108,6 +114,24 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
+      - id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          sdk_version="$(python3 -c 'import json; print(json.load(open("config/sdk-version.json"))["sdkVersion"])')"
+          expected_tag="v${sdk_version}"
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            release_tag="${REF_NAME}"
+            [[ "${release_tag}" == "${expected_tag}" ]] || {
+              echo "release tag must match sdkVersion: expected ${expected_tag}, got ${release_tag}" >&2
+              exit 1
+            }
+          else
+            release_tag="${expected_tag}"
+          fi
+          echo "tag=${release_tag}" >> "$GITHUB_OUTPUT"
       - name: Archive SDKs
         shell: bash
         run: |
@@ -120,11 +144,11 @@ jobs:
           python3 scripts/generate-artifact-index.py \
             --release-assets release \
             --output release/artifact-index.json \
-            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" \
-            --release-tag "${GITHUB_REF_NAME}"
+            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ steps.release.outputs.tag }}" \
+            --release-tag "${{ steps.release.outputs.tag }}"
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.sdkVersion && format('v{0}', inputs.sdkVersion) || github.ref_name }}
+          tag_name: ${{ steps.release.outputs.tag }}
           files: |
             release/*.zip
             release/*.zip.sha256

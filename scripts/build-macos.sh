@@ -2,7 +2,7 @@
 set -euo pipefail
 : "${SDK_ARCH:?SDK_ARCH is required}"
 : "${CRASHPAD_SRC:?CRASHPAD_SRC is required}"
-: "${SDK_STAGE:?SDK_STAGE is required}"
+: "${SDK_MINIMUM_SYSTEM_VERSION:?SDK_MINIMUM_SYSTEM_VERSION is required}"
 cd "$CRASHPAD_SRC"
 out="$CRASHPAD_SRC/out/Release-$SDK_ARCH"
 mkdir -p "$out"
@@ -11,12 +11,9 @@ if command -v gn >/dev/null 2>&1 && command -v autoninja >/dev/null 2>&1; then
   while IFS= read -r file; do
     sed -i '' 's/-std=c++23/-std=c++2b/g' "$file"
   done < <(rg -l -- '-std=c\+\+23' "$CRASHPAD_SRC" "$RUNNER_TEMP/buildtools" 2>/dev/null || true)
-  gn gen "$out" --args="target_os=\"mac\" target_cpu=\"$SDK_ARCH\" is_debug=false"
+  gn gen "$out" --args="target_os=\"mac\" target_cpu=\"$SDK_ARCH\" is_debug=false mac_deployment_target=\"$SDK_MINIMUM_SYSTEM_VERSION\""
   find "$out" -type f -name '*.ninja' -exec sed -i '' 's/-std=c++23/-std=c++2b/g' {} +
   autoninja -C "$out" crashpad_handler
 else
   echo 'gn/autoninja unavailable; CI must provision depot_tools' >&2; exit 2
 fi
-mkdir -p "$SDK_STAGE/bin" "$SDK_STAGE/include" "$SDK_STAGE/lib"
-cp "$out/crashpad_handler" "$SDK_STAGE/bin/"
-cp -R "$CRASHPAD_SRC/third_party/mini_chromium/mini_chromium" "$SDK_STAGE/include/mini_chromium" 2>/dev/null || true

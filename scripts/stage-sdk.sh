@@ -1,39 +1,81 @@
 #!/usr/bin/env bash
 set -euo pipefail
-: "${SDK_STAGE:?}"; : "${SDK_VERSION:?}"; : "${PLATFORM:?}"; : "${SDK_ARCH:?}"
-mkdir -p "$SDK_STAGE/cmake" "$SDK_STAGE/licenses"
-mkdir -p "$SDK_STAGE/include/crashpad" "$SDK_STAGE/lib"
+
+: "${SDK_STAGE:?SDK_STAGE is required}"
+: "${CRASHPAD_SRC:?CRASHPAD_SRC is required}"
+: "${SDK_OS:?SDK_OS is required}"
+: "${SDK_ARCH:?SDK_ARCH is required}"
+: "${SDK_MINIMUM_SYSTEM_VERSION:?SDK_MINIMUM_SYSTEM_VERSION is required}"
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+[[ ! -e "$SDK_STAGE" ]] || { echo "staging output must not exist: $SDK_STAGE" >&2; exit 1; }
+read_config_value() {
+  python3 - "$ROOT/$1" "$2" <<'PY'
+import json
+import sys
+print(json.load(open(sys.argv[1], encoding="utf-8"))[sys.argv[2]])
+PY
+}
+
+SDK_VERSION="$(read_config_value config/sdk-version.json sdkVersion)"
+CRASHPAD_REVISION="$(read_config_value config/source-lock.json crashpadRevision)"
+EXPECTED_MINIMUM_SYSTEM_VERSION="$(python3 - "$ROOT/config/platform-matrix.json" "$SDK_OS" "$SDK_ARCH" <<'PY'
+import json
+import sys
+for target in json.load(open(sys.argv[1], encoding="utf-8"))["platforms"]:
+    if target["os"] == sys.argv[2] and target["arch"] == sys.argv[3]:
+        print(target["minimumSystemVersion"])
+        break
+else:
+    raise SystemExit("unsupported SDK target")
+PY
+)"
+[[ "$SDK_MINIMUM_SYSTEM_VERSION" == "$EXPECTED_MINIMUM_SYSTEM_VERSION" ]] || {
+  echo "SDK_MINIMUM_SYSTEM_VERSION does not match the platform matrix" >&2
+  exit 1
+}
+
+mkdir -p "$SDK_STAGE/bin" "$SDK_STAGE/cmake" "$SDK_STAGE/licenses" "$SDK_STAGE/include/crashpad" "$SDK_STAGE/lib"
 [[ -f "$CRASHPAD_SRC/LICENSE" ]] || { echo "Crashpad source LICENSE is missing" >&2; exit 1; }
 cp "$CRASHPAD_SRC/LICENSE" "$SDK_STAGE/licenses/CRASHPAD-LICENSE"
-if [[ -n "${CRASHPAD_SRC:-}" ]]; then
-  cp -R "$CRASHPAD_SRC/client" "$SDK_STAGE/include/crashpad/"
-  cp -R "$CRASHPAD_SRC/compat" "$SDK_STAGE/include/crashpad/"
-  cp -R "$CRASHPAD_SRC/minidump" "$SDK_STAGE/include/crashpad/"
-  cp -R "$CRASHPAD_SRC/snapshot" "$SDK_STAGE/include/crashpad/"
-  cp -R "$CRASHPAD_SRC/util" "$SDK_STAGE/include/crashpad/"
-  mini_chromium_dir="$CRASHPAD_SRC/third_party/mini_chromium/mini_chromium"
-  [[ -d "$mini_chromium_dir" ]] || { echo "Crashpad mini_chromium headers are missing: $mini_chromium_dir" >&2; exit 1; }
-  cp -R "$mini_chromium_dir" "$SDK_STAGE/include/mini_chromium"
-  generated_dir="$(find "$CRASHPAD_SRC/out" -type d -name gen -print -quit 2>/dev/null || true)"
-  if [[ -n "$generated_dir" ]]; then cp -R "$generated_dir" "$SDK_STAGE/include/"; fi
-  find "$CRASHPAD_SRC/out" \( -name '*.a' -o -name '*.lib' \) -exec cp {} "$SDK_STAGE/lib/" \;
-  for public_root in "$SDK_STAGE/include/crashpad" "$SDK_STAGE/include/mini_chromium" "$SDK_STAGE/include/gen"; do
-    [[ -d "$public_root" ]] || { echo "Crashpad public include tree is missing: $public_root" >&2; exit 1; }
-  done
+for directory in client compat minidump snapshot util; do
+  cp -R "$CRASHPAD_SRC/$directory" "$SDK_STAGE/include/crashpad/"
+done
+mini_chromium_dir="$CRASHPAD_SRC/third_party/mini_chromium/mini_chromium"
+[[ -d "$mini_chromium_dir" ]] || { echo "Crashpad mini_chromium headers are missing: $mini_chromium_dir" >&2; exit 1; }
+cp -R "$mini_chromium_dir" "$SDK_STAGE/include/mini_chromium"
+generated_dir="$(find "$CRASHPAD_SRC/out" -type d -name gen -print -quit 2>/dev/null || true)"
+[[ -n "$generated_dir" ]] || { echo "Crashpad generated headers are missing" >&2; exit 1; }
+cp -R "$generated_dir" "$SDK_STAGE/include/"
+find "$CRASHPAD_SRC/out" \( -name '*.a' -o -name '*.lib' \) -exec cp {} "$SDK_STAGE/lib/" \;
+if [[ "$SDK_OS" == "windows" ]]; then
+  handler_name="crashpad_handler.exe"
+else
+  handler_name="crashpad_handler"
 fi
+handler="$CRASHPAD_SRC/out/Release-$SDK_ARCH/$handler_name"
+[[ -f "$handler" ]] || { echo "Crashpad handler is missing: $handler" >&2; exit 1; }
+cp "$handler" "$SDK_STAGE/bin/$handler_name"
+
 cat > "$SDK_STAGE/manifest.json" <<JSON
-{"schemaVersion":1,"sdkVersion":"$SDK_VERSION","platform":"$PLATFORM-$SDK_ARCH","arch":"$SDK_ARCH","crashpadRevision":"db44314646cbd0825a73b58dd2b7b5f4faca64a7","licenseMode":"bsd-compatible"}
+{"schemaVersion":2,"sdkVersion":"$SDK_VERSION","os":"$SDK_OS","arch":"$SDK_ARCH","minimumSystemVersion":"$SDK_MINIMUM_SYSTEM_VERSION","crashpadRevision":"$CRASHPAD_REVISION","licenseMode":"bsd-compatible"}
 JSON
 cat > "$SDK_STAGE/cmake/CrashpadConfig.cmake" <<'CMAKE'
 get_filename_component(PACKAGE_PREFIX_DIR "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 include("${CMAKE_CURRENT_LIST_DIR}/CrashpadTargets.cmake")
 set(Crashpad_INCLUDE_DIR "${PACKAGE_PREFIX_DIR}/include")
-set(Crashpad_HANDLER_PATH "${PACKAGE_PREFIX_DIR}/bin/crashpad_handler")
+if(WIN32)
+  set(Crashpad_HANDLER_PATH "${PACKAGE_PREFIX_DIR}/bin/crashpad_handler.exe")
+else()
+  set(Crashpad_HANDLER_PATH "${PACKAGE_PREFIX_DIR}/bin/crashpad_handler")
+endif()
 CMAKE
 cat > "$SDK_STAGE/cmake/CrashpadConfigVersion.cmake" <<CMAKE
 set(PACKAGE_VERSION "$SDK_VERSION")
-set(PACKAGE_VERSION_COMPATIBLE TRUE)
-set(PACKAGE_VERSION_EXACT TRUE)
+if(PACKAGE_FIND_VERSION VERSION_EQUAL PACKAGE_VERSION)
+  set(PACKAGE_VERSION_COMPATIBLE TRUE)
+  set(PACKAGE_VERSION_EXACT TRUE)
+endif()
 CMAKE
 cat > "$SDK_STAGE/cmake/CrashpadTargets.cmake" <<'CMAKE'
 get_filename_component(_crashpad_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)

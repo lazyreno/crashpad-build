@@ -2,9 +2,9 @@
 import json, pathlib, sys
 root = pathlib.Path(__file__).resolve().parents[1]
 platforms = json.loads((root/'config/platform-matrix.json').read_text())['platforms']
-allowed = {'macos-arm64','macos-x64','windows-arm64','windows-x64'}
-keys = [p['key'] for p in platforms]
-if set(keys) != allowed or len(keys) != len(set(keys)):
+allowed = {('macos', 'arm64'), ('macos', 'x64'), ('windows', 'arm64'), ('windows', 'x64')}
+targets = [(p['os'], p['arch']) for p in platforms]
+if set(targets) != allowed or len(targets) != len(set(targets)):
     raise SystemExit('platform matrix must contain exactly the four supported platforms')
 for p in platforms:
     if p['os'] == 'macos' and p['arch'] not in ('arm64','x64'): raise SystemExit('invalid macOS architecture')

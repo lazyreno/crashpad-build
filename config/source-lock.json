@@ -1,6 +1,6 @@
 {
   "crashpadRepository": "https://chromium.googlesource.com/crashpad/crashpad",
-  "crashpadRevision": "db44314646cbd0825a73b58dd2b7b5f4faca64a",
+  "crashpadRevision": "db44314646cbd0825a73b58dd2b7b5f4faca64a7",
   "depotToolsRepository": "https://chromium.googlesource.com/chromium/tools/depot_tools.git",
   "depotToolsRevision": "36a8df4ad006eaa0572fb446edb8145fe5403592"
 }
