@@ -55,8 +55,14 @@ jobs:
         run: |
           crashpad_repository="$(python3 -c 'import json; print(json.load(open("config/source-lock.json"))["crashpadRepository"])')"
           crashpad_revision="$(python3 -c 'import json; print(json.load(open("config/source-lock.json"))["crashpadRevision"])')"
-          git clone "$crashpad_repository" "${{ runner.temp }}/crashpad"
-          git -C "${{ runner.temp }}/crashpad" checkout "$crashpad_revision"
+          crashpad_source="${{ runner.temp }}/crashpad"
+          for attempt in 1 2 3; do
+            if git clone "$crashpad_repository" "$crashpad_source" && git -C "$crashpad_source" checkout "$crashpad_revision"; then
+              break
+            fi
+            rm -rf "$crashpad_source"
+            if [[ "$attempt" == 3 ]]; then exit 1; fi
+          done
           cd "${{ runner.temp }}"
           gclient config --name=crashpad "${crashpad_repository}.git"
           gclient sync --no-history --revision "src@${crashpad_revision}"

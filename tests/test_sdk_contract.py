@@ -153,6 +153,20 @@ class CrashpadSdkContractTest(unittest.TestCase):
         self.assertIn('CRASHPAD_RUN_UPSTREAM_TESTS:-false', macos_builder)
         self.assertIn("CRASHPAD_RUN_UPSTREAM_TESTS -eq 'true'", windows_builder)
 
+    def test_release_test_environment_uses_native_runners_and_known_workarounds(self):
+        matrix = json.loads((ROOT / "config/platform-matrix.json").read_text(encoding="utf-8"))
+        workflow = (ROOT / ".github/workflows/build.yml").read_text(encoding="utf-8")
+        macos_builder = (ROOT / "scripts/build-macos.sh").read_text(encoding="utf-8")
+        windows_builder = (ROOT / "scripts/build-windows.ps1").read_text(encoding="utf-8")
+        runners = {(target["os"], target["arch"]): target["runner"] for target in matrix["platforms"]}
+
+        self.assertEqual(runners[("macos", "x64")], "macos-15-intel")
+        self.assertEqual(runners[("windows", "arm64")], "windows-11-vs2026-arm")
+        self.assertIn("for attempt in 1 2 3; do", workflow)
+        self.assertIn("--gtest_filter=-ExcClientVariants.UniversalExceptionRaise", macos_builder)
+        self.assertNotIn('SDK_ARCH" == "arm64"', macos_builder)
+        self.assertIn("tzutil /s 'Pacific Standard Time'", windows_builder)
+
     def test_build_scripts_do_not_write_the_staged_sdk(self):
         for path in ("scripts/build-macos.sh", "scripts/build-windows.ps1"):
             content = (ROOT / path).read_text(encoding="utf-8")

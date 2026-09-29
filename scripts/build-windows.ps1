@@ -19,6 +19,8 @@ if ($env:CRASHPAD_RUN_UPSTREAM_TESTS -eq 'true') {
     )
     & autoninja -C $out $testTargets
     if ($LASTEXITCODE -ne 0) { throw 'Crashpad upstream test targets failed to build' }
+    & tzutil /s 'Pacific Standard Time'
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to set the upstream test time zone' }
     $env:CRASHPAD_TEST_DATA_ROOT = $env:CRASHPAD_SRC
     foreach ($testTarget in $testTargets) {
         & (Join-Path $out "$testTarget.exe")

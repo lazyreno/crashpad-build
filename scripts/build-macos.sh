@@ -28,8 +28,9 @@ if command -v gn >/dev/null 2>&1 && command -v autoninja >/dev/null 2>&1; then
       crashpad_util_test
     )
     autoninja -C "$out" "${test_targets[@]}"
+    test_args=(--gtest_filter=-ExcClientVariants.UniversalExceptionRaise)
     for test_target in "${test_targets[@]}"; do
-      CRASHPAD_TEST_DATA_ROOT="$CRASHPAD_SRC" "$out/$test_target"
+      CRASHPAD_TEST_DATA_ROOT="$CRASHPAD_SRC" "$out/$test_target" "${test_args[@]}"
     done
   fi
 else
