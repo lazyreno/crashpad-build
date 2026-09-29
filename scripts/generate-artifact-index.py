@@ -39,7 +39,7 @@ def main():
             'os': platform['os'], 'arch': platform['arch'],
             'minimumSystemVersion': platform['minimumSystemVersion'],
             'archiveExt': platform['archiveExt'], 'file': name,
-            'url': f"{a.base_url.rstrip('/')}/{name}", 'sha256': actual,
+            'url': f"{args.base_url.rstrip('/')}/{name}", 'sha256': actual,
             'size': archive.stat().st_size,
         })
     index = {

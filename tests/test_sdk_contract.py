@@ -3,6 +3,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+import hashlib
 from pathlib import Path
 
 
@@ -181,6 +182,40 @@ class CrashpadSdkContractTest(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("IOServiceGetMatchingService(MACH_PORT_NULL,", source_file.read_text(encoding="utf-8"))
+
+    def test_artifact_index_uses_the_requested_base_url(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = root / "release"
+            assets.mkdir()
+            matrix = json.loads((ROOT / "config/platform-matrix.json").read_text(encoding="utf-8"))["platforms"]
+            for platform in matrix:
+                name = f"crashpad-sdk-{platform['os']}-{platform['arch']}.zip"
+                archive = assets / name
+                archive.write_bytes(name.encode("utf-8"))
+                digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+                (assets / f"{name}.sha256").write_text(f"{digest}  {name}\n", encoding="utf-8")
+            output = root / "artifact-index.json"
+            result = subprocess.run(
+                [
+                    "python3", "scripts/generate-artifact-index.py",
+                    "--release-assets", str(assets),
+                    "--output", str(output),
+                    "--base-url", "https://example.invalid/releases/v20260929.1",
+                    "--release-tag", "v20260929.1",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            index = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(index["releaseTag"], "v20260929.1")
+            self.assertEqual(
+                index["artifacts"][0]["url"],
+                "https://example.invalid/releases/v20260929.1/crashpad-sdk-macos-arm64.zip",
+            )
 
     def test_platform_matrix_does_not_store_a_redundant_target_key(self):
         matrix = json.loads((ROOT / "config/platform-matrix.json").read_text(encoding="utf-8"))
