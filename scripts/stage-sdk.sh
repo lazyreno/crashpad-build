@@ -54,6 +54,16 @@ build_dir="$CRASHPAD_SRC/out/$build_configuration-$SDK_ARCH"
 generated_dir="$build_dir/gen"
 [[ -d "$generated_dir" ]] || { echo "Crashpad generated headers are missing: $generated_dir" >&2; exit 1; }
 cp -R "$generated_dir" "$SDK_STAGE/include/"
+if [[ "$SDK_OS" == "windows" ]]; then
+  client_library_name="client.lib"
+else
+  client_library_name="client.a"
+fi
+client_library="$(find "$build_dir" -type f -name "$client_library_name" -print -quit)"
+[[ -n "$client_library" ]] || {
+  echo "Crashpad client library is missing: $build_dir/$client_library_name" >&2
+  exit 1
+}
 find "$build_dir" \( -name '*.a' -o -name '*.lib' \) -exec cp {} "$SDK_STAGE/lib/" \;
 if [[ "$SDK_OS" == "windows" ]]; then
   handler_name="crashpad_handler.exe"

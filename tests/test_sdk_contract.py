@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 import hashlib
@@ -19,6 +20,7 @@ class CrashpadSdkContractTest(unittest.TestCase):
         (source / "third_party/mini_chromium/mini_chromium").mkdir(parents=True)
         (source / "LICENSE").write_text("BSD", encoding="utf-8")
         (source / "out/Release-arm64/crashpad_handler").write_text("handler", encoding="utf-8")
+        (source / "out/Release-arm64/client.a").write_bytes(b"client archive")
         sdk = root / "sdk"
         env = os.environ | {
             "SDK_STAGE": str(sdk),
@@ -188,20 +190,36 @@ class CrashpadSdkContractTest(unittest.TestCase):
             arguments = root / "gn-arguments.txt"
             source.mkdir()
             tools.mkdir()
-            (tools / "gn").write_text(
-                "#!/usr/bin/env bash\n"
-                "printf '%s\\n' \"$@\" > \"$CRASHPAD_GN_ARGUMENTS_FILE\"\n",
-                encoding="utf-8",
-            )
-            (tools / "autoninja").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-            for tool in (tools / "gn", tools / "autoninja"):
-                tool.chmod(0o755)
+            if os.name == "nt":
+                (tools / "gn.cmd").write_text(
+                    "@echo off\r\n"
+                    "echo %* > \"%CRASHPAD_GN_ARGUMENTS_FILE%\"\r\n",
+                    encoding="utf-8",
+                )
+                (tools / "autoninja.cmd").write_text(
+                    "@echo off\r\n"
+                    "echo %* >> \"%CRASHPAD_GN_ARGUMENTS_FILE%\"\r\n",
+                    encoding="utf-8",
+                )
+            else:
+                (tools / "gn").write_text(
+                    "#!/usr/bin/env bash\n"
+                    "printf '%s\\n' \"$@\" > \"$CRASHPAD_GN_ARGUMENTS_FILE\"\n",
+                    encoding="utf-8",
+                )
+                (tools / "autoninja").write_text(
+                    "#!/usr/bin/env bash\n"
+                    "printf '%s\\n' \"$@\" >> \"$CRASHPAD_GN_ARGUMENTS_FILE\"\n",
+                    encoding="utf-8",
+                )
+                for tool in (tools / "gn", tools / "autoninja"):
+                    tool.chmod(0o755)
 
             result = subprocess.run(
                 ["pwsh", "-NoProfile", "-File", "scripts/build-windows.ps1"],
                 cwd=ROOT,
                 env=os.environ | {
-                    "PATH": f"{tools}:{os.environ['PATH']}",
+                    "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}",
                     "CRASHPAD_SRC": str(source),
                     "SDK_ARCH": "x64",
                     "SDK_CONFIGURATION": configuration,
@@ -209,6 +227,8 @@ class CrashpadSdkContractTest(unittest.TestCase):
                 },
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -228,6 +248,13 @@ class CrashpadSdkContractTest(unittest.TestCase):
         self.assertIn('is_debug=true', arguments)
         self.assertIn('extra_cflags="/MDd"', arguments)
 
+    def test_windows_builder_builds_the_client_archive_for_sdk_consumers(self):
+        """The staged SDK must expose Crashpad client database APIs, not only the handler."""
+        arguments = self.run_windows_builder("debug")
+
+        self.assertIn("crashpad_handler", arguments)
+        self.assertIn("client", arguments)
+
     def test_windows_staging_keeps_configurations_isolated(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -241,6 +268,7 @@ class CrashpadSdkContractTest(unittest.TestCase):
                 (build / "gen").mkdir(parents=True)
                 (build / "crashpad_handler.exe").write_text(configuration, encoding="utf-8")
                 (build / f"{configuration}.lib").write_text(configuration, encoding="utf-8")
+                (build / "client.lib").write_text("client", encoding="utf-8")
                 sdk = root / configuration
                 subprocess.run(
                     ["scripts/stage-sdk.sh"],
@@ -261,6 +289,88 @@ class CrashpadSdkContractTest(unittest.TestCase):
                 manifest = json.loads((sdk / "manifest.json").read_text(encoding="utf-8"))
                 self.assertIn("configuration", manifest)
                 self.assertEqual(manifest["configuration"], configuration)
+
+    def test_windows_staging_requires_the_crashpad_client_library(self):
+        """Reject an SDK that can run the handler but cannot link client APIs."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            for name in ("client", "compat", "minidump", "snapshot", "util"):
+                (source / name).mkdir(parents=True)
+            (source / "third_party/mini_chromium/mini_chromium").mkdir(parents=True)
+            (source / "LICENSE").write_text("BSD", encoding="utf-8")
+            build = source / "out" / "Debug-x64"
+            (build / "gen").mkdir(parents=True)
+            (build / "crashpad_handler.exe").write_text("handler", encoding="utf-8")
+            tools = root / "tools"
+            tools.mkdir()
+            python3 = tools / "python3"
+            python3.write_text(
+                "#!/usr/bin/env bash\n"
+                "exec \"$CRASHPAD_TEST_PYTHON\" \"$@\"\n",
+                encoding="utf-8",
+            )
+            python3.chmod(0o755)
+
+            stage_command = ["scripts/stage-sdk.sh"]
+            sdk_stage = str(root / "sdk")
+            crashpad_source = str(source)
+            tool_path = str(tools)
+            if os.name == "nt":
+                bash = r"C:\Program Files\Git\bin\bash.exe"
+                stage_command.insert(0, bash)
+
+                def as_bash_path(path):
+                    return subprocess.run(
+                        [bash, "-lc", 'cygpath -u "$1"', "bash", path],
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        check=True,
+                    ).stdout.strip()
+
+                sdk_stage = as_bash_path(sdk_stage)
+                crashpad_source = as_bash_path(crashpad_source)
+                tool_path = as_bash_path(tool_path)
+            result = subprocess.run(
+                stage_command,
+                cwd=ROOT,
+                env=os.environ | {
+                    "SDK_STAGE": sdk_stage,
+                    "CRASHPAD_SRC": crashpad_source,
+                    "SDK_OS": "windows",
+                    "SDK_ARCH": "x64",
+                    "SDK_CONFIGURATION": "debug",
+                    "SDK_MINIMUM_SYSTEM_VERSION": "10.0",
+                    "CRASHPAD_TEST_PYTHON": sys.executable,
+                    "PATH": tool_path + ":/usr/bin:/bin",
+                },
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Crashpad client library is missing", result.stderr)
+
+    def test_sdk_validation_rejects_a_client_library_without_database_open_api(self):
+        """A staged client archive must export the API consumed by desktop-base."""
+        with tempfile.TemporaryDirectory() as directory:
+            sdk = Path(directory) / "sdk"
+            (sdk / "lib").mkdir(parents=True)
+            (sdk / "lib" / "client.lib").write_bytes(b"Crashpad client archive without database API")
+            result = subprocess.run(
+                [sys.executable, "scripts/validate-client-database-symbol.py", str(sdk)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("InitializeWithoutCreating", result.stderr)
 
     def test_macos_builder_applies_the_iokit_compatibility_patch(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -300,6 +410,8 @@ class CrashpadSdkContractTest(unittest.TestCase):
                 },
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)

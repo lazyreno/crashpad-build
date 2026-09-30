@@ -105,6 +105,7 @@ jobs:
         run: |
           scripts/stage-sdk.sh
           python3 scripts/validate-sdk-layout.py "$RUNNER_TEMP/sdk" --os '${{ matrix.os }}' --arch '${{ matrix.arch }}' --configuration '${{ matrix.configuration }}' --minimum-system-version '${{ matrix.minimumSystemVersion }}'
+          python3 scripts/validate-client-database-symbol.py "$RUNNER_TEMP/sdk"
           if [[ '${{ matrix.os }}' == 'macos' ]]; then
             python3 scripts/validate-macos-sdk-minos.py --sdk-root "$RUNNER_TEMP/sdk" --minimum-system-version '${{ matrix.minimumSystemVersion }}'
           else
