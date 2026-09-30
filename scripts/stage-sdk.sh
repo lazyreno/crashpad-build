@@ -55,22 +55,27 @@ generated_dir="$build_dir/gen"
 [[ -d "$generated_dir" ]] || { echo "Crashpad generated headers are missing: $generated_dir" >&2; exit 1; }
 cp -R "$generated_dir" "$SDK_STAGE/include/"
 if [[ "$SDK_OS" == "windows" ]]; then
-  client_library="$(find "$build_dir" -type f -name 'client.lib' -print -quit)"
-  database_library="$(find "$build_dir" -type f -name 'common.lib' -print -quit)"
+  client_library="$build_dir/obj/client/client.lib"
+  database_library="$build_dir/obj/client/common.lib"
 else
   # GN prefixes static library names with "lib" on Apple platforms.
-  client_library="$(find "$build_dir" -type f \( -name 'libclient.a' -o -name 'client.a' \) -print -quit)"
-  database_library="$(find "$build_dir" -type f \( -name 'libcommon.a' -o -name 'common.a' \) -print -quit)"
+  client_library="$build_dir/obj/client/libclient.a"
+  database_library="$build_dir/obj/client/libcommon.a"
 fi
-[[ -n "$client_library" ]] || {
+[[ -f "$client_library" ]] || {
   echo "Crashpad client library is missing under $build_dir" >&2
   exit 1
 }
-[[ -n "$database_library" ]] || {
+[[ -f "$database_library" ]] || {
   echo "Crashpad database library is missing under $build_dir" >&2
   exit 1
 }
-find "$build_dir" \( -name '*.a' -o -name '*.lib' \) -exec cp {} "$SDK_STAGE/lib/" \;
+while IFS= read -r -d '' library; do
+  relative_library="${library#"$build_dir"/}"
+  destination="$SDK_STAGE/lib/$relative_library"
+  mkdir -p "$(dirname "$destination")"
+  cp "$library" "$destination"
+done < <(find "$build_dir" -type f \( -name '*.a' -o -name '*.lib' \) -print0)
 if [[ "$SDK_OS" == "windows" ]]; then
   handler_name="crashpad_handler.exe"
 else
@@ -105,9 +110,9 @@ get_filename_component(_crashpad_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 if(NOT TARGET Crashpad::Client)
   add_library(Crashpad::Client INTERFACE IMPORTED)
   if(WIN32)
-    file(GLOB _crashpad_libs "${_crashpad_root}/lib/*.lib")
+    file(GLOB_RECURSE _crashpad_libs "${_crashpad_root}/lib/*.lib")
   else()
-    file(GLOB _crashpad_libs "${_crashpad_root}/lib/*.a")
+    file(GLOB_RECURSE _crashpad_libs "${_crashpad_root}/lib/*.a")
   endif()
   if(APPLE)
     set(_crashpad_system_libs "-lbsm")

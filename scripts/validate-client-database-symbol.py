@@ -13,7 +13,7 @@ parser.add_argument("sdk_root", type=Path)
 args = parser.parse_args()
 
 libraries = [
-    args.sdk_root / "lib" / name
+    args.sdk_root / "lib" / "obj" / "client" / name
     for name in ("common.lib", "libcommon.a", "common.a")
 ]
 database_library = next((library for library in libraries if library.is_file()), None)

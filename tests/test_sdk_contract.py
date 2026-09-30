@@ -21,8 +21,9 @@ class CrashpadSdkContractTest(unittest.TestCase):
         (source / "LICENSE").write_text("BSD", encoding="utf-8")
         (source / "out/Release-arm64/crashpad_handler").write_text("handler", encoding="utf-8")
         # GN prefixes static libraries with "lib" on macOS.
-        (source / "out/Release-arm64/libclient.a").write_bytes(b"client archive")
-        (source / "out/Release-arm64/libcommon.a").write_bytes(
+        (source / "out/Release-arm64/obj/client").mkdir(parents=True)
+        (source / "out/Release-arm64/obj/client/libclient.a").write_bytes(b"client archive")
+        (source / "out/Release-arm64/obj/client/libcommon.a").write_bytes(
             b"CrashReportDatabase::InitializeWithoutCreating"
         )
         sdk = root / "sdk"
@@ -273,8 +274,9 @@ class CrashpadSdkContractTest(unittest.TestCase):
                 (build / "gen").mkdir(parents=True)
                 (build / "crashpad_handler.exe").write_text(configuration, encoding="utf-8")
                 (build / f"{configuration}.lib").write_text(configuration, encoding="utf-8")
-                (build / "client.lib").write_text("client", encoding="utf-8")
-                (build / "common.lib").write_text("common", encoding="utf-8")
+                (build / "obj/client").mkdir(parents=True)
+                (build / "obj/client/client.lib").write_text("client", encoding="utf-8")
+                (build / "obj/client/common.lib").write_text("common", encoding="utf-8")
                 sdk = root / configuration
                 subprocess.run(
                     ["scripts/stage-sdk.sh"],
@@ -308,7 +310,8 @@ class CrashpadSdkContractTest(unittest.TestCase):
             build = source / "out" / "Debug-x64"
             (build / "gen").mkdir(parents=True)
             (build / "crashpad_handler.exe").write_text("handler", encoding="utf-8")
-            (build / "client.lib").write_text("client", encoding="utf-8")
+            (build / "obj/client").mkdir(parents=True)
+            (build / "obj/client/client.lib").write_text("client", encoding="utf-8")
             tools = root / "tools"
             tools.mkdir()
             python3 = tools / "python3"
@@ -366,7 +369,10 @@ class CrashpadSdkContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             sdk = Path(directory) / "sdk"
             (sdk / "lib").mkdir(parents=True)
-            (sdk / "lib" / "common.lib").write_bytes(b"Crashpad common archive without database API")
+            (sdk / "lib" / "obj/client").mkdir(parents=True)
+            (sdk / "lib" / "obj/client/common.lib").write_bytes(
+                b"Crashpad common archive without database API"
+            )
             result = subprocess.run(
                 [sys.executable, "scripts/validate-client-database-symbol.py", str(sdk)],
                 cwd=ROOT,
@@ -378,6 +384,14 @@ class CrashpadSdkContractTest(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("InitializeWithoutCreating", result.stderr)
+
+    def test_staging_preserves_library_subdirectories_to_prevent_name_collisions(self):
+        stage_script = (ROOT / "scripts/stage-sdk.sh").read_text(encoding="utf-8")
+        cmake_targets = (ROOT / "scripts/stage-sdk.sh").read_text(encoding="utf-8")
+
+        self.assertIn('relative_library="${library#"$build_dir"/}"', stage_script)
+        self.assertIn('destination="$SDK_STAGE/lib/$relative_library"', stage_script)
+        self.assertIn('file(GLOB_RECURSE _crashpad_libs', cmake_targets)
 
     def test_macos_builder_applies_the_iokit_compatibility_patch(self):
         with tempfile.TemporaryDirectory() as directory:
