@@ -253,6 +253,16 @@ class CrashpadSdkContractTest(unittest.TestCase):
         self.assertIn('is_debug=true', arguments)
         self.assertIn('extra_cflags="/MDd"', arguments)
 
+    def test_windows_arm64_builder_pins_the_native_msvc_toolset(self):
+        windows_builder = (ROOT / "scripts/build-windows.ps1").read_text(encoding="utf-8")
+
+        self.assertIn("-host_arch=arm64", windows_builder)
+        self.assertIn("-arch=arm64", windows_builder)
+        self.assertIn("$toolsetVersion = '14.44.35207'", windows_builder)
+        self.assertIn("-vcvars_ver=$toolsetVersion", windows_builder)
+        self.assertIn("HostARM64\\ARM64\\cl.exe", windows_builder)
+        self.assertIn('is_clang=false', windows_builder)
+
     def test_windows_builder_builds_the_client_and_database_archives_for_sdk_consumers(self):
         """The staged SDK must expose Crashpad client database APIs, not only the handler."""
         arguments = self.run_windows_builder("debug")
