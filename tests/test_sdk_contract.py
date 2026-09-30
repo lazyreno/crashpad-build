@@ -178,6 +178,16 @@ class CrashpadSdkContractTest(unittest.TestCase):
         self.assertNotIn('SDK_ARCH" == "arm64"', macos_builder)
         self.assertIn("tzutil /s 'Pacific Standard Time'", windows_builder)
 
+    def test_arm64_workflow_verifies_the_native_msvc_producer(self):
+        workflow = (ROOT / ".github/workflows/build.yml").read_text(encoding="utf-8")
+
+        self.assertIn("Verify native ARM64 MSVC toolchain", workflow)
+        self.assertIn("matrix.arch == 'arm64'", workflow)
+        self.assertIn("PROCESSOR_ARCHITECTURE", workflow)
+        self.assertIn("14.44.35207", workflow)
+        self.assertIn("HostARM64\\ARM64\\cl.exe", workflow)
+        self.assertNotIn("& $compiler /Bv", workflow)
+
     def test_build_scripts_do_not_write_the_staged_sdk(self):
         for path in ("scripts/build-macos.sh", "scripts/build-windows.ps1"):
             content = (ROOT / path).read_text(encoding="utf-8")
@@ -252,6 +262,16 @@ class CrashpadSdkContractTest(unittest.TestCase):
         self.assertIn('out/Debug-x64', arguments)
         self.assertIn('is_debug=true', arguments)
         self.assertIn('extra_cflags="/MDd"', arguments)
+
+    def test_windows_arm64_builder_pins_the_native_msvc_toolset(self):
+        windows_builder = (ROOT / "scripts/build-windows.ps1").read_text(encoding="utf-8")
+
+        self.assertIn("-host_arch=arm64", windows_builder)
+        self.assertIn("-arch=arm64", windows_builder)
+        self.assertIn("$toolsetVersion = '14.44.35207'", windows_builder)
+        self.assertIn("-vcvars_ver=$toolsetVersion", windows_builder)
+        self.assertIn("HostARM64\\ARM64\\cl.exe", windows_builder)
+        self.assertIn('is_clang=false', windows_builder)
 
     def test_windows_builder_builds_the_client_and_database_archives_for_sdk_consumers(self):
         """The staged SDK must expose Crashpad client database APIs, not only the handler."""
