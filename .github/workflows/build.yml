@@ -67,6 +67,22 @@ jobs:
           gclient config --name=crashpad "${crashpad_repository}.git"
           gclient sync --no-history --revision "src@${crashpad_revision}"
 
+      - name: Verify native ARM64 MSVC toolchain
+        if: matrix.os == 'windows' && matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          if ($env:PROCESSOR_ARCHITECTURE -ne 'ARM64') {
+            throw "ARM64 SDK builds require a native ARM64 runner, got $env:PROCESSOR_ARCHITECTURE"
+          }
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $installation = (& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
+          $compiler = Join-Path $installation 'VC\Tools\MSVC\14.44.35207\bin\HostARM64\ARM64\cl.exe'
+          if (!(Test-Path -LiteralPath $compiler)) {
+            throw "Native ARM64 MSVC 14.44.35207 was not found: $compiler"
+          }
+          Write-Host "[BUILD] Native ARM64 MSVC compiler: $compiler"
+          & $compiler /Bv
+
       - name: Build macOS SDK
         if: matrix.os == 'macos'
         env:

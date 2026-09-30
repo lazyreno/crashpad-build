@@ -178,6 +178,15 @@ class CrashpadSdkContractTest(unittest.TestCase):
         self.assertNotIn('SDK_ARCH" == "arm64"', macos_builder)
         self.assertIn("tzutil /s 'Pacific Standard Time'", windows_builder)
 
+    def test_arm64_workflow_verifies_the_native_msvc_producer(self):
+        workflow = (ROOT / ".github/workflows/build.yml").read_text(encoding="utf-8")
+
+        self.assertIn("Verify native ARM64 MSVC toolchain", workflow)
+        self.assertIn("matrix.arch == 'arm64'", workflow)
+        self.assertIn("PROCESSOR_ARCHITECTURE", workflow)
+        self.assertIn("14.44.35207", workflow)
+        self.assertIn("HostARM64\\ARM64\\cl.exe", workflow)
+
     def test_build_scripts_do_not_write_the_staged_sdk(self):
         for path in ("scripts/build-macos.sh", "scripts/build-windows.ps1"):
             content = (ROOT / path).read_text(encoding="utf-8")
