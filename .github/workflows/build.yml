@@ -81,7 +81,6 @@ jobs:
             throw "Native ARM64 MSVC 14.44.35207 was not found: $compiler"
           }
           Write-Host "[BUILD] Native ARM64 MSVC compiler: $compiler"
-          & $compiler /Bv
 
       - name: Build macOS SDK
         if: matrix.os == 'macos'

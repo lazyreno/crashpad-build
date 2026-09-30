@@ -186,6 +186,7 @@ class CrashpadSdkContractTest(unittest.TestCase):
         self.assertIn("PROCESSOR_ARCHITECTURE", workflow)
         self.assertIn("14.44.35207", workflow)
         self.assertIn("HostARM64\\ARM64\\cl.exe", workflow)
+        self.assertNotIn("& $compiler /Bv", workflow)
 
     def test_build_scripts_do_not_write_the_staged_sdk(self):
         for path in ("scripts/build-macos.sh", "scripts/build-windows.ps1"):
