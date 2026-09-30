@@ -26,7 +26,7 @@ def main():
     matrix = json.loads((root / 'config/platform-matrix.json').read_text())['platforms']
     artifacts = []
     for platform in matrix:
-        name = f"crashpad-sdk-{platform['os']}-{platform['arch']}.zip"
+        name = f"crashpad-sdk-{platform['os']}-{platform['arch']}-{platform['configuration']}.zip"
         archive = args.release_assets / name
         checksum = args.release_assets / f'{name}.sha256'
         if not archive.exists() or not checksum.exists():
@@ -36,14 +36,14 @@ def main():
         if actual != expected:
             raise SystemExit(f'Checksum mismatch for {name}')
         artifacts.append({
-            'os': platform['os'], 'arch': platform['arch'],
+            'os': platform['os'], 'arch': platform['arch'], 'configuration': platform['configuration'],
             'minimumSystemVersion': platform['minimumSystemVersion'],
             'archiveExt': platform['archiveExt'], 'file': name,
             'url': f"{args.base_url.rstrip('/')}/{name}", 'sha256': actual,
             'size': archive.stat().st_size,
         })
     index = {
-        'schemaVersion': 2, 'name': 'crashpad-build',
+        'schemaVersion': 3, 'name': 'crashpad-build',
         'sdkVersion': sdk['sdkVersion'], 'releaseTag': args.release_tag,
         'licenseMode': sdk['licenseMode'], 'crashpadRevision': source_lock['crashpadRevision'],
         'artifacts': artifacts,

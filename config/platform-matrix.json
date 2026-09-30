@@ -3,6 +3,7 @@
     {
       "os": "macos",
       "arch": "arm64",
+      "configuration": "release",
       "runner": "macos-15",
       "archiveExt": "zip",
       "minimumSystemVersion": "11.0"
@@ -10,6 +11,7 @@
     {
       "os": "macos",
       "arch": "x64",
+      "configuration": "release",
       "runner": "macos-15-intel",
       "archiveExt": "zip",
       "minimumSystemVersion": "11.0"
@@ -17,6 +19,15 @@
     {
       "os": "windows",
       "arch": "arm64",
+      "configuration": "release",
+      "runner": "windows-11-vs2026-arm",
+      "archiveExt": "zip",
+      "minimumSystemVersion": "10.0"
+    },
+    {
+      "os": "windows",
+      "arch": "arm64",
+      "configuration": "debug",
       "runner": "windows-11-vs2026-arm",
       "archiveExt": "zip",
       "minimumSystemVersion": "10.0"
@@ -24,6 +35,15 @@
     {
       "os": "windows",
       "arch": "x64",
+      "configuration": "release",
+      "runner": "windows-2022",
+      "archiveExt": "zip",
+      "minimumSystemVersion": "10.0"
+    },
+    {
+      "os": "windows",
+      "arch": "x64",
+      "configuration": "debug",
       "runner": "windows-2022",
       "archiveExt": "zip",
       "minimumSystemVersion": "10.0"

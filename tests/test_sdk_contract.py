@@ -25,6 +25,7 @@ class CrashpadSdkContractTest(unittest.TestCase):
             "CRASHPAD_SRC": str(source),
             "SDK_OS": "macos",
             "SDK_ARCH": "arm64",
+            "SDK_CONFIGURATION": "release",
             "SDK_MINIMUM_SYSTEM_VERSION": "11.0",
         }
         subprocess.run(["scripts/stage-sdk.sh"], cwd=ROOT, env=env, check=True)
@@ -37,6 +38,7 @@ class CrashpadSdkContractTest(unittest.TestCase):
                 [
                     "python3", "scripts/validate-sdk-layout.py", str(sdk),
                     "--os", "macos", "--arch", "arm64",
+                    "--configuration", "release",
                     "--minimum-system-version", "11.0",
                 ],
                 cwd=ROOT,
@@ -45,9 +47,10 @@ class CrashpadSdkContractTest(unittest.TestCase):
             manifest = json.loads((sdk / "manifest.json").read_text(encoding="utf-8"))
             self.assertTrue((sdk / "bin/crashpad_handler").is_file())
 
-        self.assertEqual(manifest["schemaVersion"], 2)
+        self.assertEqual(manifest["schemaVersion"], 3)
         self.assertEqual(manifest["os"], "macos")
         self.assertEqual(manifest["arch"], "arm64")
+        self.assertEqual(manifest["configuration"], "release")
         self.assertEqual(manifest["minimumSystemVersion"], "11.0")
         self.assertNotIn("platform", manifest)
         source_lock = json.loads((ROOT / "config/source-lock.json").read_text(encoding="utf-8"))
@@ -73,6 +76,7 @@ class CrashpadSdkContractTest(unittest.TestCase):
                     "CRASHPAD_SRC": str(source),
                     "SDK_OS": "macos",
                     "SDK_ARCH": "arm64",
+                    "SDK_CONFIGURATION": "release",
                     "SDK_MINIMUM_SYSTEM_VERSION": "11.0",
                 },
                 capture_output=True,
@@ -176,7 +180,7 @@ class CrashpadSdkContractTest(unittest.TestCase):
         windows_builder = (ROOT / "scripts/build-windows.ps1").read_text(encoding="utf-8")
         self.assertNotIn("SDK_MINIMUM_SYSTEM_VERSION", windows_builder)
 
-    def test_windows_release_builder_requests_the_dynamic_release_crt(self):
+    def run_windows_builder(self, configuration):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "crashpad"
@@ -200,6 +204,7 @@ class CrashpadSdkContractTest(unittest.TestCase):
                     "PATH": f"{tools}:{os.environ['PATH']}",
                     "CRASHPAD_SRC": str(source),
                     "SDK_ARCH": "x64",
+                    "SDK_CONFIGURATION": configuration,
                     "CRASHPAD_GN_ARGUMENTS_FILE": str(arguments),
                 },
                 capture_output=True,
@@ -207,7 +212,55 @@ class CrashpadSdkContractTest(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('extra_cflags="/MD"', arguments.read_text(encoding="utf-8"))
+            return arguments.read_text(encoding="utf-8")
+
+    def test_windows_release_builder_requests_the_dynamic_release_crt(self):
+        arguments = self.run_windows_builder("release")
+
+        self.assertIn('out/Release-x64', arguments)
+        self.assertIn('is_debug=false', arguments)
+        self.assertIn('extra_cflags="/MD"', arguments)
+
+    def test_windows_debug_builder_requests_the_dynamic_debug_crt(self):
+        arguments = self.run_windows_builder("debug")
+
+        self.assertIn('out/Debug-x64', arguments)
+        self.assertIn('is_debug=true', arguments)
+        self.assertIn('extra_cflags="/MDd"', arguments)
+
+    def test_windows_staging_keeps_configurations_isolated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            for name in ("client", "compat", "minidump", "snapshot", "util"):
+                (source / name).mkdir(parents=True)
+            (source / "third_party/mini_chromium/mini_chromium").mkdir(parents=True)
+            (source / "LICENSE").write_text("BSD", encoding="utf-8")
+            for configuration, output in (("release", "Release-x64"), ("debug", "Debug-x64")):
+                build = source / "out" / output
+                (build / "gen").mkdir(parents=True)
+                (build / "crashpad_handler.exe").write_text(configuration, encoding="utf-8")
+                (build / f"{configuration}.lib").write_text(configuration, encoding="utf-8")
+                sdk = root / configuration
+                subprocess.run(
+                    ["scripts/stage-sdk.sh"],
+                    cwd=ROOT,
+                    env=os.environ | {
+                        "SDK_STAGE": str(sdk),
+                        "CRASHPAD_SRC": str(source),
+                        "SDK_OS": "windows",
+                        "SDK_ARCH": "x64",
+                        "SDK_CONFIGURATION": configuration,
+                        "SDK_MINIMUM_SYSTEM_VERSION": "10.0",
+                    },
+                    check=True,
+                )
+                self.assertTrue((sdk / "lib" / f"{configuration}.lib").is_file())
+                other = "debug" if configuration == "release" else "release"
+                self.assertFalse((sdk / "lib" / f"{other}.lib").exists())
+                manifest = json.loads((sdk / "manifest.json").read_text(encoding="utf-8"))
+                self.assertIn("configuration", manifest)
+                self.assertEqual(manifest["configuration"], configuration)
 
     def test_macos_builder_applies_the_iokit_compatibility_patch(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -257,9 +310,16 @@ class CrashpadSdkContractTest(unittest.TestCase):
             root = Path(directory)
             assets = root / "release"
             assets.mkdir()
-            matrix = json.loads((ROOT / "config/platform-matrix.json").read_text(encoding="utf-8"))["platforms"]
-            for platform in matrix:
-                name = f"crashpad-sdk-{platform['os']}-{platform['arch']}.zip"
+            expected_targets = (
+                ("macos", "arm64", "release"),
+                ("macos", "x64", "release"),
+                ("windows", "arm64", "release"),
+                ("windows", "arm64", "debug"),
+                ("windows", "x64", "release"),
+                ("windows", "x64", "debug"),
+            )
+            for os_name, arch, configuration in expected_targets:
+                name = f"crashpad-sdk-{os_name}-{arch}-{configuration}.zip"
                 archive = assets / name
                 archive.write_bytes(name.encode("utf-8"))
                 digest = hashlib.sha256(archive.read_bytes()).hexdigest()
@@ -283,13 +343,27 @@ class CrashpadSdkContractTest(unittest.TestCase):
             self.assertEqual(index["releaseTag"], "v20260929.1")
             self.assertEqual(
                 index["artifacts"][0]["url"],
-                "https://example.invalid/releases/v20260929.1/crashpad-sdk-macos-arm64.zip",
+                "https://example.invalid/releases/v20260929.1/crashpad-sdk-macos-arm64-release.zip",
             )
+            self.assertEqual(index["artifacts"][0]["configuration"], "release")
 
-    def test_platform_matrix_does_not_store_a_redundant_target_key(self):
+    def test_platform_matrix_lists_configuration_qualified_targets(self):
         matrix = json.loads((ROOT / "config/platform-matrix.json").read_text(encoding="utf-8"))
 
         self.assertTrue(all("key" not in target for target in matrix["platforms"]))
+        self.assertTrue(all("configuration" in target for target in matrix["platforms"]))
+        self.assertEqual(
+            {(target["os"], target["arch"], target["configuration"])
+             for target in matrix["platforms"]},
+            {
+                ("macos", "arm64", "release"),
+                ("macos", "x64", "release"),
+                ("windows", "arm64", "release"),
+                ("windows", "arm64", "debug"),
+                ("windows", "x64", "release"),
+                ("windows", "x64", "debug"),
+            },
+        )
 
 
 if __name__ == "__main__":
