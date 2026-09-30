@@ -176,6 +176,39 @@ class CrashpadSdkContractTest(unittest.TestCase):
         windows_builder = (ROOT / "scripts/build-windows.ps1").read_text(encoding="utf-8")
         self.assertNotIn("SDK_MINIMUM_SYSTEM_VERSION", windows_builder)
 
+    def test_windows_release_builder_requests_the_dynamic_release_crt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "crashpad"
+            tools = root / "tools"
+            arguments = root / "gn-arguments.txt"
+            source.mkdir()
+            tools.mkdir()
+            (tools / "gn").write_text(
+                "#!/usr/bin/env bash\n"
+                "printf '%s\\n' \"$@\" > \"$CRASHPAD_GN_ARGUMENTS_FILE\"\n",
+                encoding="utf-8",
+            )
+            (tools / "autoninja").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            for tool in (tools / "gn", tools / "autoninja"):
+                tool.chmod(0o755)
+
+            result = subprocess.run(
+                ["pwsh", "-NoProfile", "-File", "scripts/build-windows.ps1"],
+                cwd=ROOT,
+                env=os.environ | {
+                    "PATH": f"{tools}:{os.environ['PATH']}",
+                    "CRASHPAD_SRC": str(source),
+                    "SDK_ARCH": "x64",
+                    "CRASHPAD_GN_ARGUMENTS_FILE": str(arguments),
+                },
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('extra_cflags="/MD"', arguments.read_text(encoding="utf-8"))
+
     def test_macos_builder_applies_the_iokit_compatibility_patch(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
