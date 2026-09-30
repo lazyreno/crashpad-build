@@ -12,7 +12,7 @@ if (!(Get-Command gn -ErrorAction SilentlyContinue) -or !(Get-Command autoninja 
 $cpu = $env:SDK_ARCH
 $gnArgs = 'target_os="win" target_cpu="' + $cpu + '" is_debug=' + $isDebug + ' is_clang=true extra_cflags="' + $runtimeLibrary + '"'
 & gn gen $out --args=$gnArgs
-& autoninja -C $out crashpad_handler client
+& autoninja -C $out crashpad_handler client client:common
 if ($env:CRASHPAD_RUN_UPSTREAM_TESTS -eq 'true') {
     $testTargets = @(
         'crashpad_client_test',

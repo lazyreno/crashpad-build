@@ -55,13 +55,19 @@ generated_dir="$build_dir/gen"
 [[ -d "$generated_dir" ]] || { echo "Crashpad generated headers are missing: $generated_dir" >&2; exit 1; }
 cp -R "$generated_dir" "$SDK_STAGE/include/"
 if [[ "$SDK_OS" == "windows" ]]; then
-  client_library_name="client.lib"
+  client_library="$(find "$build_dir" -type f -name 'client.lib' -print -quit)"
+  database_library="$(find "$build_dir" -type f -name 'common.lib' -print -quit)"
 else
-  client_library_name="client.a"
+  # GN prefixes static library names with "lib" on Apple platforms.
+  client_library="$(find "$build_dir" -type f \( -name 'libclient.a' -o -name 'client.a' \) -print -quit)"
+  database_library="$(find "$build_dir" -type f \( -name 'libcommon.a' -o -name 'common.a' \) -print -quit)"
 fi
-client_library="$(find "$build_dir" -type f -name "$client_library_name" -print -quit)"
 [[ -n "$client_library" ]] || {
-  echo "Crashpad client library is missing: $build_dir/$client_library_name" >&2
+  echo "Crashpad client library is missing under $build_dir" >&2
+  exit 1
+}
+[[ -n "$database_library" ]] || {
+  echo "Crashpad database library is missing under $build_dir" >&2
   exit 1
 }
 find "$build_dir" \( -name '*.a' -o -name '*.lib' \) -exec cp {} "$SDK_STAGE/lib/" \;

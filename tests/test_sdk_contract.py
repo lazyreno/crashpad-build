@@ -20,7 +20,11 @@ class CrashpadSdkContractTest(unittest.TestCase):
         (source / "third_party/mini_chromium/mini_chromium").mkdir(parents=True)
         (source / "LICENSE").write_text("BSD", encoding="utf-8")
         (source / "out/Release-arm64/crashpad_handler").write_text("handler", encoding="utf-8")
-        (source / "out/Release-arm64/client.a").write_bytes(b"client archive")
+        # GN prefixes static libraries with "lib" on macOS.
+        (source / "out/Release-arm64/libclient.a").write_bytes(b"client archive")
+        (source / "out/Release-arm64/libcommon.a").write_bytes(
+            b"CrashReportDatabase::InitializeWithoutCreating"
+        )
         sdk = root / "sdk"
         env = os.environ | {
             "SDK_STAGE": str(sdk),
@@ -248,12 +252,13 @@ class CrashpadSdkContractTest(unittest.TestCase):
         self.assertIn('is_debug=true', arguments)
         self.assertIn('extra_cflags="/MDd"', arguments)
 
-    def test_windows_builder_builds_the_client_archive_for_sdk_consumers(self):
+    def test_windows_builder_builds_the_client_and_database_archives_for_sdk_consumers(self):
         """The staged SDK must expose Crashpad client database APIs, not only the handler."""
         arguments = self.run_windows_builder("debug")
 
         self.assertIn("crashpad_handler", arguments)
         self.assertIn("client", arguments)
+        self.assertIn("client:common", arguments)
 
     def test_windows_staging_keeps_configurations_isolated(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -269,6 +274,7 @@ class CrashpadSdkContractTest(unittest.TestCase):
                 (build / "crashpad_handler.exe").write_text(configuration, encoding="utf-8")
                 (build / f"{configuration}.lib").write_text(configuration, encoding="utf-8")
                 (build / "client.lib").write_text("client", encoding="utf-8")
+                (build / "common.lib").write_text("common", encoding="utf-8")
                 sdk = root / configuration
                 subprocess.run(
                     ["scripts/stage-sdk.sh"],
@@ -290,8 +296,8 @@ class CrashpadSdkContractTest(unittest.TestCase):
                 self.assertIn("configuration", manifest)
                 self.assertEqual(manifest["configuration"], configuration)
 
-    def test_windows_staging_requires_the_crashpad_client_library(self):
-        """Reject an SDK that can run the handler but cannot link client APIs."""
+    def test_windows_staging_requires_the_crashpad_database_library(self):
+        """Reject an SDK that can start the handler but cannot enumerate reports."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "source"
@@ -302,6 +308,7 @@ class CrashpadSdkContractTest(unittest.TestCase):
             build = source / "out" / "Debug-x64"
             (build / "gen").mkdir(parents=True)
             (build / "crashpad_handler.exe").write_text("handler", encoding="utf-8")
+            (build / "client.lib").write_text("client", encoding="utf-8")
             tools = root / "tools"
             tools.mkdir()
             python3 = tools / "python3"
@@ -352,14 +359,14 @@ class CrashpadSdkContractTest(unittest.TestCase):
             )
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Crashpad client library is missing", result.stderr)
+        self.assertIn("Crashpad database library is missing", result.stderr)
 
-    def test_sdk_validation_rejects_a_client_library_without_database_open_api(self):
-        """A staged client archive must export the API consumed by desktop-base."""
+    def test_sdk_validation_rejects_a_database_library_without_database_open_api(self):
+        """The staged database archive must export the API consumed by desktop-base."""
         with tempfile.TemporaryDirectory() as directory:
             sdk = Path(directory) / "sdk"
             (sdk / "lib").mkdir(parents=True)
-            (sdk / "lib" / "client.lib").write_bytes(b"Crashpad client archive without database API")
+            (sdk / "lib" / "common.lib").write_bytes(b"Crashpad common archive without database API")
             result = subprocess.run(
                 [sys.executable, "scripts/validate-client-database-symbol.py", str(sdk)],
                 cwd=ROOT,
